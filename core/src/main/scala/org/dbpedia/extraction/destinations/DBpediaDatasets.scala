@@ -10,6 +10,7 @@ object DBpediaDatasets
      * General
      */
     val Labels = new Dataset("labels", "Titles of all Wikipedia Articles in the corresponding language.")
+    val WikipediaDump = new Dataset("pages_articles", "The original Wikipedia xml dump file of this language.")
     val CategoryLabels = new Dataset("category_labels", "Labels for Categories.")
     val Images = new Dataset("images", "Main image and corresponding thumbnail from Wikipedia article.")
     val GeoCoordinates = new Dataset("geo_coordinates", "Geographic coordinates extracted from Wikipedia.")
@@ -47,9 +48,9 @@ object DBpediaDatasets
     val OntologyPropertiesGeo = new Dataset("geo_coordinates_mappingbased", "Geographic coordinates extracted from Wikipedia originating from mapped infoboxes in the mappings wiki")
     val SpecificProperties = new Dataset("specific_mappingbased_properties", "Infobox data from the mapping-based extraction, using units of measurement more convenient for the resource type, e.g. square kilometres instead of square metres for the area of a city.")
 
-    val OntologyPropertiesObjectsCleaned = new Dataset("mappingbased-objects", "High-quality data extracted from Infoboxes using the mapping-based extraction (Object properties only). The predicates in this dataset are in the /ontology/ namespace.//\n  Note that this data is of much higher quality than the Raw Infobox Properties in the /property/ namespace. For example, there are three different raw Wikipedia infobox properties for the birth date of a person. In the the /ontology/ namespace, they are all **mapped onto one relation** http://dbpedia.org/ontology/birthDate. It is a strong point of DBpedia to unify these relations.");
-    val OntologyPropertiesDisjointRange = new Dataset("mappingbased-objects-disjoint-range", "Errors detected in the mapping based properties (disjoint range).");
-    val OntologyPropertiesDisjointDomain = new Dataset("mappingbased-objects-disjoint-domain", "Errors detected in the mapping based properties (disjoint domain).");
+    val OntologyPropertiesObjectsCleaned = new Dataset("mappingbased-objects", "High-quality data extracted from Infoboxes using the mapping-based extraction (Object properties only). The predicates in this dataset are in the /ontology/ namespace.//\n  Note that this data is of much higher quality than the Raw Infobox Properties in the /property/ namespace. For example, there are three different raw Wikipedia infobox properties for the birth date of a person. In the the /ontology/ namespace, they are all **mapped onto one relation** http://dbpedia.org/ontology/birthDate. It is a strong point of DBpedia to unify these relations.")
+    val OntologyPropertiesDisjointRange = new Dataset("mappingbased-objects-disjoint-range", "Errors detected in the mapping based properties (disjoint range).")
+    val OntologyPropertiesDisjointDomain = new Dataset("mappingbased-objects-disjoint-domain", "Errors detected in the mapping based properties (disjoint domain).")
 
 
     /**
@@ -109,6 +110,7 @@ object DBpediaDatasets
     val WikidataReifiedR2R = new Dataset("mappingbased_properties_reified") // keep same name with other languages
     val WikidataReifiedR2RQualifier= new Dataset("mappingbased_properties_reified_qualifiers") // keep same name with other languages
     val WikidataRaw = new Dataset("raw_unredirected")
+    val WikidataRawRedirected = new Dataset("raw")
     val WikidataRawReified = new Dataset("raw_reified")
     val WikidataRawReifiedQualifiers = new Dataset("raw_reified_qualifiers")
     val WikidataReference = new Dataset("references")
