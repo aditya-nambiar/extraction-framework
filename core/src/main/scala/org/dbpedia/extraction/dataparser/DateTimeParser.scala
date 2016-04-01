@@ -1,5 +1,6 @@
 package org.dbpedia.extraction.dataparser
 
+import de.unihd.dbs.heideltime.standalone.{POSTagger, OutputType, HeidelTimeStandalone, DocumentType}
 import org.dbpedia.extraction.ontology.datatypes.Datatype
 import java.util.logging.{Logger, Level}
 import org.dbpedia.extraction.wikiparser._
@@ -8,12 +9,13 @@ import org.dbpedia.extraction.util.{Language, Date}
 import org.dbpedia.extraction.mappings.Redirects
 import scala.language.reflectiveCalls
 
+
 /**
- * Parses a data time.
- */
+  * Parses a data time.
+  */
 class DateTimeParser ( context : {
-                            def language : Language
-                            def redirects : Redirects },
+    def language : Language
+    def redirects : Redirects },
                        datatype : Datatype,
                        val strict : Boolean = false) extends DataParser
 {
@@ -33,8 +35,8 @@ class DateTimeParser ( context : {
     // parse logic configurations
 
     override val splitPropertyNodeRegex = if (DataParserConfig.splitPropertyNodeRegexDateTime.contains(language))
-                                            DataParserConfig.splitPropertyNodeRegexDateTime.get(language).get
-                                          else DataParserConfig.splitPropertyNodeRegexDateTime.get("en").get
+        DataParserConfig.splitPropertyNodeRegexDateTime.get(language).get
+    else DataParserConfig.splitPropertyNodeRegexDateTime.get("en").get
 
     private val monthRegex = months.keySet.mkString("|")
     private val eraRegex = eraStr.keySet.mkString("|")
@@ -74,29 +76,203 @@ class DateTimeParser ( context : {
 
     private val YearRegex = ("""(?iu)""" + prefix + """(?<![\d\pL\w])(-?\d{1,4})(?!\d)\s*(""" + eraRegex + """)?""" + postfix).r
 
+    // get Date object from the node converted into string
+    def getHeidelTime(text: String, datatype: Datatype): Option[Date] = {
+        val heidelTime = new HeidelTimeStandalone(
+            de.unihd.dbs.uima.annotator.heideltime.resources.Language.ENGLISH,
+            DocumentType.NARRATIVES,
+            OutputType.TIMEML,
+            "src/main/resources/config.props",
+            POSTagger.STANFORDPOSTAGGER, true)
 
-    override def parse(node : Node) : Option[Date] =
+        val result = heidelTime.process(text)
+        return convTimeMLtoDate(result, datatype)
+
+
+    }
+
+    // Check if the array contains only numbers apart from the string XXXX
+    def check(date_array : Array[String]) : Boolean = {
+        for ( x <- date_array){
+            if( x != "XXXX"){
+                if( !x.forall(_.isDigit) ){
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    // Converts the output of Heidel Parser which is in TimeX3 format into Date
+    def convTimeMLtoDate(text: String, datatype: Datatype) : Option[Date] =
     {
-        try
-        {
-            for( child @ TemplateNode(_, _, _, _) <- node.children;
-                 date <- catchTemplate(child))
-            {
-                return Some(date)
+        val text_xml = scala.xml.XML.loadString(text)
+        val time_value1  = text_xml \ "TIMEX3INTERVAL" \ "TIMEX3" \\ "@value"
+        var time_value  = text_xml \ "TIMEX3" \\ "@value"
+
+        if (  time_value.iterator.isEmpty ) {
+            time_value = time_value1
+        }
+        var year, month, day : Int = -1;
+
+        for (time_val_itr <- time_value.iterator){
+            val time_value_str = time_val_itr.toString()
+
+            var date_arr = time_value_str.split("-")
+            if(!check(date_arr)){
+                return None
             }
 
+            if (date_arr.length == 3){
+                if(date_arr(0) != "XXXX"){
+                    year = date_arr(0).toInt
+                }
+                month = date_arr(1).toInt
+                day = date_arr(2).toInt
+            } else if (date_arr.length == 2){
+                if(date_arr(0) != "XXXX"){
+                    year = date_arr(0).toInt
+                }
+                month = date_arr(1).toInt
+            } else if (date_arr.length == 1){
+                if(date_arr(0) != "XXXX" && date_arr(0).length == 4){
+                    year = date_arr(0).toInt
+                }
+            }
+
+        }
+
+
+        // Less than 29 days in Feb
+        if( month == 2 && day > 29) {
+            month = -1
+            day = -1
+        }
+
+        // Less than 31 days in April, June, Sept, & November
+        if (( month == 4 || month == 6 || month == 9 || month == 11) && day > 30){
+            month = -1
+            day = -1
+        }
+
+        datatype.name match
+        {
+            case "xsd:date" =>
+            {
+                if( year != -1 && month != -1 && day != -1)
+                    return Some(new Date(Some(year), Some(month), Some(day), datatype))
+            }
+            case "xsd:gDay" =>
+            {
+                if(  day != -1)
+                    return Some(new Date(None, None, Some(day), datatype))
+
+            }
+            case "xsd:gMonth" =>
+            {
+                if(  month != -1 )
+                    return Some(new Date(None, Some(month), None, datatype))
+
+            }
+            case "xsd:gYear" =>
+            {
+                if( year != -1 )
+                    return Some(new Date(Some(year),None,None, datatype))
+
+            }
+            case "xsd:gMonthDay" =>
+            {
+                if( month != -1 && day != -1)
+                    return Some(new Date(None, Some(month), Some(day), datatype))
+
+            }
+            case "xsd:gYearMonth" =>
+            {
+                if( year != -1 && month != -1 )
+                    return Some(new Date(Some(year), Some(month),None, datatype))
+
+            }
+            case _ => return None
+        }
+        return None
+
+    }
+
+    def getRegexTime(node : Node) : Option[Date] = {
+        try
+        {
             for(date <- findDate(nodeToString(node).trim))
             {
                 return Some(date)
             }
         }
         catch
-        {
-            case ex : IllegalArgumentException  => logger.log(Level.FINE, "Error while parsing date", ex)
-            case ex : NumberFormatException => logger.log(Level.FINE, "Error while parsing date", ex)
+            {
+                case ex : IllegalArgumentException  => logger.log(Level.FINE, "Error while parsing date", ex)
+                case ex : NumberFormatException => logger.log(Level.FINE, "Error while parsing date", ex)
+            }
+
+        return None
+    }
+    override def parse(node : Node) : Option[Date] =
+    {
+        try {
+            for (child@TemplateNode(_, _, _, _) <- node.children;
+                 date <- catchTemplate(child)) {
+                return Some(date)
+            }
+        }
+        catch
+            {
+                case ex : IllegalArgumentException  => logger.log(Level.FINE, "Error while parsing date", ex)
+                case ex : NumberFormatException => logger.log(Level.FINE, "Error while parsing date", ex)
+            }
+
+
+        var year_h, month_h, day_h : Option[Int] = None;
+        var year_r, month_r, day_r : Option[Int] = None;
+        var year_act, month_act, day_act : Option[Int] = None;
+
+        getHeidelTime(nodeToString(node), datatype) match {
+            case Some(x) => {
+                year_h = x.year
+                month_h = x.month
+                day_h = x.day
+            }
+            case None =>;
         }
 
-        None
+        getRegexTime(node)  match {
+            case Some(x) => {
+                year_r = x.year
+                month_r = x.month
+                day_r = x.day
+            }
+            case None =>;
+        }
+
+
+        var date_exist : Boolean = false;
+        if (! (year_h.isEmpty && year_r.isEmpty)) {
+            year_act = Some(year_r.getOrElse(year_h.getOrElse(None)).asInstanceOf[Int])
+            date_exist = true;
+        }
+
+        if (! (month_h.isEmpty && month_r.isEmpty)) {
+            month_act = Some(month_r.getOrElse(month_h.getOrElse(None)).asInstanceOf[Int])
+            date_exist = true;
+        }
+
+        if (! (day_h.isEmpty && day_r.isEmpty)) {
+            day_act = Some(day_r.getOrElse(day_h.getOrElse(None)).asInstanceOf[Int])
+            date_exist = true;
+        }
+
+        if (!date_exist){
+            return None
+        }
+        return Some(new Date( year_act, month_act, day_act, datatype))
+
     }
 
     private def catchTemplate(node: TemplateNode) : Option[Date] =
@@ -150,26 +326,26 @@ class DateTimeParser ( context : {
                 {
                     try
                     {
-                    	//month can be either given by its name or by its number 
-                    	val monthNum = months.get(month.toLowerCase) match {
-	                    	case Some(s) => s
-	                    	case None => month.toInt
-                    	}
-                    	//year can contain era
-                    	val yearNum = year match {
-                    	  case YearRegex(year, era) => {
-                    	    val eraIdentifier = getEraSign(era)
-                    	    (eraIdentifier+year).toInt
-                    	  } 
-                    	  case YearRegex(year) => year.toInt
-                    	}
+                        //month can be either given by its name or by its number
+                        val monthNum = months.get(month.toLowerCase) match {
+                            case Some(s) => s
+                            case None => month.toInt
+                        }
+                        //year can contain era
+                        val yearNum = year match {
+                            case YearRegex(year, era) => {
+                                val eraIdentifier = getEraSign(era)
+                                (eraIdentifier+year).toInt
+                            }
+                            case YearRegex(year) => year.toInt
+                        }
                         return Some(new Date(Some(yearNum), Some(monthNum), Some(day.toInt), datatype))
                     }
                     catch
-                    {
-                        case e : IllegalArgumentException =>
-                        case e : MatchError => 
-                    }
+                        {
+                            case e : IllegalArgumentException =>
+                            case e : MatchError =>
+                        }
                 }
             }
         }
@@ -218,15 +394,15 @@ class DateTimeParser ( context : {
     }
 
     /**
-     * Finds year, month and day of a provided string
-     *
-     * Provided Data might be a Date like: [[January 20]] [[2001]], [[1991-10-25]] or 3 June 1981
-     * Returns a normalized Date value (eg: 1984-01-29) if a Date is found in the string, NULL otherwise.
-     *
-     * @param    string    $input    Literaltext, that matched to be a Date
-     *             string    $language language of Literaltext, eg: 'en' or 'de'
-     * @return     string    Date or NULL
-     */
+      * Finds year, month and day of a provided string
+      *
+      * Provided Data might be a Date like: [[January 20]] [[2001]], [[1991-10-25]] or 3 June 1981
+      * Returns a normalized Date value (eg: 1984-01-29) if a Date is found in the string, NULL otherwise.
+      *
+      * @param    string    $input    Literaltext, that matched to be a Date
+      *             string    $language language of Literaltext, eg: 'en' or 'de'
+      * @return     string    Date or NULL
+      */
     private def catchDate(input: String) : Option[Date] =
     {
         for(DateRegex1(day, month, year) <- List(input))
@@ -278,9 +454,9 @@ class DateTimeParser ( context : {
                 return new Some(new Date(Some(year.toInt), Some(monthNumber), Some(day.toInt), datatype))
             }
             catch
-            {
-                case ex: NoSuchElementException => logger.log(Level.FINE, "Month with name '"+month+"' (language: "+language+") is unknown")
-            }
+                {
+                    case ex: NoSuchElementException => logger.log(Level.FINE, "Month with name '"+month+"' (language: "+language+") is unknown")
+                }
         }
 
         for(DateRegex6(year, month, day) <- List(input))
@@ -297,8 +473,8 @@ class DateTimeParser ( context : {
         {
             months.get(month.toLowerCase) match
             {
-              case Some(monthNumber) => return new Some(new Date(Some((year).toInt), Some(monthNumber), Some(day.toInt), datatype))
-              case None => logger.log(Level.FINE, "Month with name '"+month+"' (language: "+language+") is unknown")
+                case Some(monthNumber) => return new Some(new Date(Some((year).toInt), Some(monthNumber), Some(day.toInt), datatype))
+                case None => logger.log(Level.FINE, "Month with name '"+month+"' (language: "+language+") is unknown")
             }
         }
 
