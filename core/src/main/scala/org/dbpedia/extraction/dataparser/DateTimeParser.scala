@@ -77,7 +77,7 @@ class DateTimeParser ( context : {
     private val YearRegex = ("""(?iu)""" + prefix + """(?<![\d\pL\w])(-?\d{1,4})(?!\d)\s*(""" + eraRegex + """)?""" + postfix).r
 
     // get Date object from the node converted into string
-    def getHeidelTime(text: String, datatype: Datatype): Option[Date] = {
+    def heidelTimeParser(text: String): Option[Date] = {
         val heidelTime = new HeidelTimeStandalone(
             de.unihd.dbs.uima.annotator.heideltime.resources.Language.ENGLISH,
             DocumentType.NARRATIVES,
@@ -86,7 +86,7 @@ class DateTimeParser ( context : {
             POSTagger.STANFORDPOSTAGGER, true)
 
         val result = heidelTime.process(text)
-        return convTimeMLtoDate(result, datatype)
+        convTimeMLtoDate(result)
 
 
     }
@@ -100,11 +100,11 @@ class DateTimeParser ( context : {
                 }
             }
         }
-        return true
+        true
     }
 
     // Converts the output of Heidel Parser which is in TimeX3 format into Date
-    def convTimeMLtoDate(text: String, datatype: Datatype) : Option[Date] =
+    def convTimeMLtoDate(text: String) : Option[Date] =
     {
         val text_xml = scala.xml.XML.loadString(text)
         val time_value1  = text_xml \ "TIMEX3INTERVAL" \ "TIMEX3" \\ "@value"
@@ -113,7 +113,7 @@ class DateTimeParser ( context : {
         if (  time_value.iterator.isEmpty ) {
             time_value = time_value1
         }
-        var year, month, day : Int = -1;
+        var year, month, day : Int = -1
 
         for (time_val_itr <- time_value.iterator){
             val time_value_str = time_val_itr.toString()
@@ -194,84 +194,75 @@ class DateTimeParser ( context : {
             }
             case _ => return None
         }
-        return None
+         None
 
     }
 
-    def getRegexTime(node : Node) : Option[Date] = {
-        try
-        {
-            for(date <- findDate(nodeToString(node).trim))
-            {
-                return Some(date)
-            }
-        }
-        catch
-            {
-                case ex : IllegalArgumentException  => logger.log(Level.FINE, "Error while parsing date", ex)
-                case ex : NumberFormatException => logger.log(Level.FINE, "Error while parsing date", ex)
-            }
 
-        return None
-    }
-    override def parse(node : Node) : Option[Date] =
-    {
-        try {
-            for (child@TemplateNode(_, _, _, _) <- node.children;
-                 date <- catchTemplate(child)) {
-                return Some(date)
-            }
-        }
-        catch
-            {
-                case ex : IllegalArgumentException  => logger.log(Level.FINE, "Error while parsing date", ex)
-                case ex : NumberFormatException => logger.log(Level.FINE, "Error while parsing date", ex)
-            }
+    def pickBestTime(regex_date : Option[Date], heidel_date : Option[Date]): Option[Date] ={
+        var year_h, month_h, day_h : Option[Int] = None
+        var year_r, month_r, day_r : Option[Int] = None
+        var year_act, month_act, day_act : Option[Int] = None
 
 
-        var year_h, month_h, day_h : Option[Int] = None;
-        var year_r, month_r, day_r : Option[Int] = None;
-        var year_act, month_act, day_act : Option[Int] = None;
-
-        getHeidelTime(nodeToString(node), datatype) match {
-            case Some(x) => {
-                year_h = x.year
-                month_h = x.month
-                day_h = x.day
-            }
-            case None =>;
+        if( !heidel_date.isEmpty) {
+            year_h = heidel_date.get.year
+            month_h = heidel_date.get.month
+            day_h = heidel_date.get.day
         }
 
-        getRegexTime(node)  match {
-            case Some(x) => {
-                year_r = x.year
-                month_r = x.month
-                day_r = x.day
-            }
-            case None =>;
+        if( ! regex_date.isEmpty) {
+            year_r = regex_date.get.year
+            month_r = regex_date.get.month
+            day_r = regex_date.get.day
         }
 
-
-        var date_exist : Boolean = false;
+        var date_exist : Boolean = false
         if (! (year_h.isEmpty && year_r.isEmpty)) {
             year_act = Some(year_r.getOrElse(year_h.getOrElse(None)).asInstanceOf[Int])
-            date_exist = true;
+            date_exist = true
         }
 
         if (! (month_h.isEmpty && month_r.isEmpty)) {
             month_act = Some(month_r.getOrElse(month_h.getOrElse(None)).asInstanceOf[Int])
-            date_exist = true;
+            date_exist = true
         }
 
         if (! (day_h.isEmpty && day_r.isEmpty)) {
             day_act = Some(day_r.getOrElse(day_h.getOrElse(None)).asInstanceOf[Int])
-            date_exist = true;
+            date_exist = true
         }
 
-        if (!date_exist){
+        if (!date_exist)
             return None
+
+        Some(new Date( year_act, month_act, day_act, datatype))
+    }
+
+
+    override def parse(node : Node) : Option[Date] =
+    {
+        try
+        {
+            for( child @ TemplateNode(_, _, _, _) <- node.children;
+                 date <- catchTemplate(child))
+            {
+                return Some(date)
+            }
+
+            for(date <- pickBestTime(findDate(nodeToString(node).trim), heidelTimeParser(nodeToString(node).trim)))
+            {
+                return Some(date)
+            }
         }
-        return Some(new Date( year_act, month_act, day_act, datatype))
+        catch
+            {
+                case ex : IllegalArgumentException  => logger.log(Level.FINE, "Error while parsing date", ex)
+                case ex : NumberFormatException => logger.log(Level.FINE, "Error while parsing date", ex)
+            }
+
+
+         None
 
     }
 
