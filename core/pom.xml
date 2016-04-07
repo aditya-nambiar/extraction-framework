@@ -9,7 +9,6 @@
         <artifactId>extraction</artifactId>
         <version>4.2-SNAPSHOT</version>
     </parent>
-
     <groupId>org.dbpedia.extraction</groupId>
     <artifactId>core</artifactId>
     <name>DBpedia Core Libraries</name>

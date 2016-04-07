@@ -82,7 +82,7 @@ class DateTimeParser ( context : {
             de.unihd.dbs.uima.annotator.heideltime.resources.Language.ENGLISH,
             DocumentType.NARRATIVES,
             OutputType.TIMEML,
-            "src/main/resources/config.props",
+            "config.props",
             POSTagger.STANFORDPOSTAGGER, true)
 
         val result = heidelTime.process(text)
@@ -200,43 +200,31 @@ class DateTimeParser ( context : {
 
 
     def pickBestTime(regex_date : Option[Date], heidel_date : Option[Date]): Option[Date] ={
-        var year_h, month_h, day_h : Option[Int] = None
-        var year_r, month_r, day_r : Option[Int] = None
-        var year_act, month_act, day_act : Option[Int] = None
+        var year, month, day :Option[Int] = None
 
-
-        if( !heidel_date.isEmpty) {
-            year_h = heidel_date.get.year
-            month_h = heidel_date.get.month
-            day_h = heidel_date.get.day
+        if (!regex_date.isEmpty) {
+             year = regex_date.get.year
+             month = regex_date.get.month
+             day = regex_date.get.day
         }
 
-        if( ! regex_date.isEmpty) {
-            year_r = regex_date.get.year
-            month_r = regex_date.get.month
-            day_r = regex_date.get.day
+
+        if(year.isEmpty && !heidel_date.isEmpty) {
+            year = heidel_date.get.year
         }
 
-        var date_exist : Boolean = false
-        if (! (year_h.isEmpty && year_r.isEmpty)) {
-            year_act = Some(year_r.getOrElse(year_h.getOrElse(None)).asInstanceOf[Int])
-            date_exist = true
+        if(month.isEmpty && !heidel_date.isEmpty) {
+            month = heidel_date.get.month
         }
 
-        if (! (month_h.isEmpty && month_r.isEmpty)) {
-            month_act = Some(month_r.getOrElse(month_h.getOrElse(None)).asInstanceOf[Int])
-            date_exist = true
+        if(day.isEmpty && !heidel_date.isEmpty) {
+            day = heidel_date.get.day
         }
 
-        if (! (day_h.isEmpty && day_r.isEmpty)) {
-            day_act = Some(day_r.getOrElse(day_h.getOrElse(None)).asInstanceOf[Int])
-            date_exist = true
-        }
-
-        if (!date_exist)
+        if( year.isEmpty && month.isEmpty && day.isEmpty)
             return None
 
-        Some(new Date( year_act, month_act, day_act, datatype))
+        Some(new Date( year, month, day, datatype))
     }
 
 
