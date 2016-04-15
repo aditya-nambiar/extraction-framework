@@ -76,14 +76,18 @@ class DateTimeParser ( context : {
 
     private val YearRegex = ("""(?iu)""" + prefix + """(?<![\d\pL\w])(-?\d{1,4})(?!\d)\s*(""" + eraRegex + """)?""" + postfix).r
 
+    private var heidelTime : HeidelTimeStandalone = null
     // get Date object from the node converted into string
     def heidelTimeParser(text: String): Option[Date] = {
-        val heidelTime = new HeidelTimeStandalone(
-            de.unihd.dbs.uima.annotator.heideltime.resources.Language.ENGLISH,
-            DocumentType.NARRATIVES,
-            OutputType.TIMEML,
-            "config.props",
-            POSTagger.STANFORDPOSTAGGER, true)
+
+         if(heidelTime == null){
+             heidelTime = new HeidelTimeStandalone(
+                 de.unihd.dbs.uima.annotator.heideltime.resources.Language.ENGLISH,
+                 DocumentType.NARRATIVES,
+                 OutputType.TIMEML,
+                 "config.props",
+                 POSTagger.STANFORDPOSTAGGER, true)
+         }
 
         val result = heidelTime.process(text)
         convTimeMLtoDate(result)
@@ -92,7 +96,7 @@ class DateTimeParser ( context : {
     }
 
     // Check if the array contains only numbers apart from the string XXXX
-    def check(date_array : Array[String]) : Boolean = {
+    def check_date_is_numeric(date_array : Array[String]) : Boolean = {
         for ( x <- date_array){
             if( x != "XXXX"){
                 if( !x.forall(_.isDigit) ){
@@ -119,7 +123,7 @@ class DateTimeParser ( context : {
             val time_value_str = time_val_itr.toString()
 
             var date_arr = time_value_str.split("-")
-            if(!check(date_arr)){
+            if(!check_date_is_numeric(date_arr)){
                 return None
             }
 
